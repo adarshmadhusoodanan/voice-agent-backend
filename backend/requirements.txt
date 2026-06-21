@@ -1,0 +1,9 @@
+livekit-agents[deepgram,cartesia,silero,groq,turn-detector]~=1.0
+livekit-plugins-bey
+fastapi
+uvicorn[standard]
+aiosqlite
+python-dotenv
+pydantic
+groq
+livekit-api
