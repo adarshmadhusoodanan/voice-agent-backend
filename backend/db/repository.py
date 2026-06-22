@@ -48,6 +48,18 @@ async def get_available_slots(date: str) -> list[str]:
 async def book(phone: str, name: str | None, date: str, time: str) -> dict:
     appt_id = str(uuid.uuid4())
     async with aiosqlite.connect(DB_PATH) as db:
+        existing = await db.execute_fetchall(
+            "SELECT id FROM appointments WHERE phone=? AND date=? AND time=? AND status='booked'",
+            (phone, date, time),
+        )
+        if existing:
+            return {
+                "ok": False,
+                "reason": "already_yours",
+                "id": existing[0][0],
+                "date": date,
+                "time": time,
+            }
         try:
             await db.execute(
                 "INSERT INTO appointments(id, phone, name, date, time) VALUES(?,?,?,?,?)",

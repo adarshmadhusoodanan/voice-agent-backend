@@ -46,13 +46,24 @@ class FrontDeskAgent(Agent):
             return "Ask for the phone number first, then call identify_user."
         await emit(self.room, "tool_start", {"tool": "book_appointment", "label": "Booking…"})
         res = await repo.book(self.phone, self.name, date, time)
+        if res.get("reason") == "already_yours":
+            await emit(self.room, "tool_result", {
+                "tool": "book_appointment",
+                "label": f"Already yours ✅ {date} {time}",
+                "data": res,
+            })
+            return (
+                f"This slot is already booked by this caller. "
+                f"Appointment id: {res['id']}, date: {date}, time: {time}. "
+                "Confirm to the caller their appointment is already set — no new booking needed."
+            )
         if not res["ok"]:
             await emit(self.room, "tool_result", {
                 "tool": "book_appointment",
                 "label": "Slot already taken ❌",
                 "data": res,
             })
-            return "That slot is taken. Fetch slots and offer another time."
+            return "That slot is taken by another patient. Fetch slots and offer another time."
         await emit(self.room, "tool_result", {
             "tool": "book_appointment",
             "label": f"Booked ✅ {date} {time}",
