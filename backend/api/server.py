@@ -4,8 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from livekit.api import AccessToken, LiveKitAPI, VideoGrants
-from livekit.api.agent_dispatch_service import CreateAgentDispatchRequest
+from livekit.api import AccessToken, VideoGrants
 
 from db.database import init_db
 from db import repository as repo
@@ -33,7 +32,7 @@ def health():
 
 
 @app.get("/token")
-async def token(identity: str = "user"):
+def token(identity: str = "user"):
     room = f"frontdesk-{uuid.uuid4().hex[:8]}"
     grant = VideoGrants(room_join=True, room=room)
     at = (
@@ -42,15 +41,6 @@ async def token(identity: str = "user"):
         .with_name(identity)
         .with_grants(grant)
     )
-    lkapi = LiveKitAPI(
-        url=os.getenv("LIVEKIT_URL"),
-        api_key=os.getenv("LIVEKIT_API_KEY"),
-        api_secret=os.getenv("LIVEKIT_API_SECRET"),
-    )
-    await lkapi.agent_dispatch.create_dispatch(
-        CreateAgentDispatchRequest(agent_name="", room=room)
-    )
-    await lkapi.aclose()
     return {
         "token": at.to_jwt(),
         "url": os.getenv("LIVEKIT_URL"),

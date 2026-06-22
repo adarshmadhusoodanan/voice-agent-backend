@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -5,8 +6,15 @@ import os
 from dotenv import load_dotenv
 from groq import AsyncGroq
 
-from livekit.agents import AgentSession, JobContext, RoomOutputOptions, WorkerOptions, WorkerType, cli
-from livekit.plugins import bey, cartesia, deepgram, groq, silero
+from livekit.agents import (
+    AgentSession,
+    JobContext,
+    WorkerOptions,
+    WorkerType,
+    cli,
+)
+from livekit.agents.voice.room_io import RoomOptions
+from livekit.plugins import bey, cartesia, deepgram, groq
 
 from agent.assistant import FrontDeskAgent
 from agent.events import emit
@@ -23,29 +31,43 @@ async def entrypoint(ctx: JobContext) -> None:
     await init_db()
 
     session = AgentSession(
-        vad=silero.VAD.load(),
-        stt=deepgram.STT(model="nova-3"),
+        # vad omitted — AgentSession uses bundled silero VAD automatically
+        stt=deepgram.STT(
+            model="nova-3",
+            language="en-US",
+            smart_format=True,
+            endpointing_ms=300,  # ms of silence before Deepgram finalises transcript
+        ),
         llm=groq.LLM(model="llama-3.3-70b-versatile"),
         tts=cartesia.TTS(model="sonic-2"),
+        # inference.TurnDetector() removed — CPU inference takes 4-40s, blocks audio pipeline
+        turn_handling={
+            "endpointing": {"min_delay": 0.5, "max_delay": 6.0},
+        },
     )
 
     agent = FrontDeskAgent(room=ctx.room)
 
-    # Start session first — BEY must subscribe to a running session's audio
-    use_avatar = bool(os.getenv("BEY_API_KEY") and os.getenv("BEY_AVATAR_ID"))
+    # Always publish direct audio — BEY adds its video track on top.
+    # If BEY fails, the caller still hears the agent through the raw audio track.
     await session.start(
         agent=agent,
         room=ctx.room,
-        room_output_options=RoomOutputOptions(audio_enabled=not use_avatar),
+        room_options=RoomOptions(audio_output=True),
     )
 
-    # Avatar is optional: skipped when keys are absent, graceful fallback on error
-    if use_avatar:
+    bey_api_key = os.getenv("BEY_API_KEY")
+    bey_avatar_id = os.getenv("BEY_AVATAR_ID")
+    if bey_api_key and bey_avatar_id:
         try:
-            avatar = bey.AvatarSession(avatar_id=os.getenv("BEY_AVATAR_ID"))
+            avatar = bey.AvatarSession(avatar_id=bey_avatar_id)
             await avatar.start(session, room=ctx.room)
+            # BEY SDK connects synchronously but WebRTC track negotiation takes ~300–500ms.
+            # Waiting here ensures the avatar is rendering before the first greeting audio.
+            await asyncio.sleep(0.5)
+            logger.info("BEY avatar ready")
         except Exception as exc:
-            logger.warning("BEY avatar failed, falling back to direct audio: %s", exc)
+            logger.warning("BEY avatar failed, using direct audio: %s", exc)
 
     await ctx.wait_for_participant()
 
