@@ -10,7 +10,7 @@ build/
 
 # uv
 .venv/
-uv.lock
+# uv.lock is intentionally tracked — required for reproducible Docker builds
 
 # Environment
 .env

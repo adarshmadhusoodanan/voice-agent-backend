@@ -7,3 +7,8 @@ python-dotenv
 pydantic
 groq
 livekit-api
+
+# Testing
+pytest
+pytest-asyncio
+httpx
