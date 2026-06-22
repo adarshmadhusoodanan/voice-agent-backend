@@ -4,7 +4,7 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 
 from livekit.agents import (
     AgentSession,
@@ -14,7 +14,8 @@ from livekit.agents import (
     cli,
 )
 from livekit.agents.voice.room_io import RoomOptions
-from livekit.plugins import bey, cartesia, deepgram, groq
+from livekit.plugins import bey, cartesia, deepgram
+from livekit.plugins import openai as openai_plugin
 
 from agent.assistant import FrontDeskAgent
 from agent.events import emit
@@ -41,8 +42,9 @@ async def entrypoint(ctx: JobContext) -> None:
             smart_format=True,
             endpointing_ms=300,
         ),
-        llm=groq.LLM(
-            model="llama-3.3-70b-versatile",
+        llm=openai_plugin.LLM.with_openrouter(
+            model="meta-llama/llama-3.3-70b-instruct",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
             parallel_tool_calls=False,
         ),
         tts=tts,
@@ -79,10 +81,13 @@ async def entrypoint(ctx: JobContext) -> None:
 
     async def on_close():
         history = session.history.to_dict()
-        groq_client = AsyncGroq()
+        or_client = AsyncOpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+        )
         try:
-            resp = await groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+            resp = await or_client.chat.completions.create(
+                model="meta-llama/llama-3.3-70b-instruct",
                 messages=[
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": json.dumps(history)},

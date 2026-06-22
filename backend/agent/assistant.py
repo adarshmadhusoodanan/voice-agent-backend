@@ -1,7 +1,8 @@
 import asyncio
 import json
+import os
 
-from groq import AsyncGroq
+from openai import AsyncOpenAI
 from livekit.agents import Agent, function_tool, RunContext
 from livekit import rtc
 
@@ -132,10 +133,13 @@ class FrontDeskAgent(Agent):
             # Generate and emit summary while the room is still connected.
             # Shutdown callbacks fire after room.disconnect(), so we must do this here.
             history = ctx.session.history.to_dict()
-            groq_client = AsyncGroq()
+            or_client = AsyncOpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=os.getenv("OPENROUTER_API_KEY"),
+            )
             try:
-                resp = await groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
+                resp = await or_client.chat.completions.create(
+                    model="meta-llama/llama-3.3-70b-instruct",
                     messages=[
                         {"role": "system", "content": SUMMARY_PROMPT},
                         {"role": "user", "content": json.dumps(history)},
