@@ -5,14 +5,14 @@ description = "Healthcare front-desk voice agent — LiveKit Agents + Groq"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "livekit-agents[deepgram,cartesia,silero,groq,turn-detector]~=1.0",
+    "livekit-agents[deepgram,cartesia,openai]~=1.0",
     "livekit-plugins-bey",
     "fastapi",
     "uvicorn[standard]",
     "aiosqlite",
     "python-dotenv",
     "pydantic",
-    "groq",
+    "openai",
     "livekit-api",
 ]
 
