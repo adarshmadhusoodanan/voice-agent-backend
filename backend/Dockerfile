@@ -8,9 +8,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy source
 COPY . .
+RUN chmod +x ./start.sh
 
-# Pre-download VAD and turn-detector models to avoid cold-start lag
-RUN uv run python -m agent.main download-files || true
-
-# Default command (overridden per-service in docker-compose.yml)
-CMD ["uv", "run", "python", "-m", "agent.main", "start"]
+# Default: run both API + agent (used on Render and locally via docker run)
+CMD ["./start.sh"]

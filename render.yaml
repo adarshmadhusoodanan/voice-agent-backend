@@ -4,9 +4,6 @@ services:
     runtime: docker
     dockerfilePath: ./backend/Dockerfile
     dockerContext: ./backend
-    startCommand: >-
-      bash -c "uv run python -m agent.main start &
-      uv run uvicorn api.server:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /health
     envVars:
       - key: DB_PATH
