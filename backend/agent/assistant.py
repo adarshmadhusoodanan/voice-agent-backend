@@ -1,14 +1,18 @@
+import asyncio
+import json
+
+from groq import AsyncGroq
 from livekit.agents import Agent, function_tool, RunContext
 from livekit import rtc
 
 from db import repository as repo
 from agent.events import emit
-from agent.prompts import SYSTEM_PROMPT
+from agent.prompts import SYSTEM_PROMPT, SUMMARY_PROMPT
 
 
 class FrontDeskAgent(Agent):
     def __init__(self, room: rtc.Room) -> None:
-        super().__init__(instructions=SYSTEM_PROMPT)
+        super().__init__(instructions=SYSTEM_PROMPT())
         self.room = room
         self.phone: str | None = None
         self.name: str | None = None
@@ -121,4 +125,34 @@ class FrontDeskAgent(Agent):
     async def end_conversation(self, ctx: RunContext) -> str:
         """End the call gracefully. Always call this when the caller is done."""
         await emit(self.room, "tool_start", {"tool": "end_conversation", "label": "Wrapping up…"})
-        return "Generating summary and ending the call."
+
+        async def _close():
+            await asyncio.sleep(4)  # allow TTS goodbye to finish
+
+            # Generate and emit summary while the room is still connected.
+            # Shutdown callbacks fire after room.disconnect(), so we must do this here.
+            history = ctx.session.history.to_dict()
+            groq_client = AsyncGroq()
+            try:
+                resp = await groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[
+                        {"role": "system", "content": SUMMARY_PROMPT},
+                        {"role": "user", "content": json.dumps(history)},
+                    ],
+                )
+                raw = resp.choices[0].message.content or ""
+                raw = raw.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+                data = json.loads(raw)
+            except Exception:
+                data = {"summary": "Summary unavailable.", "appointments": [], "preferences": []}
+
+            try:
+                await emit(self.room, "summary", {"data": data})
+            except Exception:
+                pass  # room closing — frontend gets disconnect event instead
+
+            await ctx.session.aclose()
+
+        asyncio.create_task(_close())
+        return "Say a warm goodbye to the caller. The call will end in a moment."
