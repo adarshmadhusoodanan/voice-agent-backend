@@ -1,12 +1,27 @@
 import uuid
+from datetime import date, timedelta
+
 import aiosqlite
 from db.database import DB_PATH
 
-ALL_SLOTS: dict[str, list[str]] = {
-    "2026-06-23": ["09:00 AM", "10:00 AM", "11:30 AM", "02:00 PM", "03:30 PM"],
-    "2026-06-24": ["09:30 AM", "11:00 AM", "01:00 PM", "04:00 PM"],
-    "2026-06-25": ["10:00 AM", "12:00 PM", "02:30 PM", "04:30 PM"],
-}
+
+def _build_slots() -> dict[str, list[str]]:
+    """Generate appointment slots for the next 14 business days from today."""
+    morning = ["09:00 AM", "10:00 AM", "11:30 AM"]
+    afternoon = ["02:00 PM", "03:30 PM", "04:00 PM"]
+    result: dict[str, list[str]] = {}
+    d = date.today() + timedelta(days=1)
+    count = 0
+    while count < 14:
+        if d.weekday() < 5:  # Monday–Friday only
+            # Alternate full / slightly reduced schedule for realistic variety
+            result[d.isoformat()] = morning + afternoon if count % 3 != 0 else morning + afternoon[:2]
+            count += 1
+        d += timedelta(days=1)
+    return result
+
+
+ALL_SLOTS: dict[str, list[str]] = _build_slots()
 
 
 async def upsert_user(phone: str, name: str | None = None) -> None:
