@@ -139,7 +139,7 @@ class FrontDeskAgent(Agent):
             )
             try:
                 resp = await or_client.chat.completions.create(
-                    model="meta-llama/llama-3.3-70b-instruct",
+                    model="openai/gpt-oss-120b:free",
                     messages=[
                         {"role": "system", "content": SUMMARY_PROMPT},
                         {"role": "user", "content": json.dumps(history)},
@@ -159,4 +159,4 @@ class FrontDeskAgent(Agent):
             await ctx.session.aclose()
 
         asyncio.create_task(_close())
-        return "Say a warm goodbye to the caller. The call will end in a moment."
+        return "Goodbye sent. Disconnecting in a few seconds."

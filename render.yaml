@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: mykare-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    startCommand: >-
+      bash -c "uv run uvicorn api.server:app --host 0.0.0.0 --port $PORT &
+      uv run python -m agent.main start"
+    healthCheckPath: /health
+    envVars:
+      - key: DB_PATH
+        value: /app/data/appointments.db
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: CARTESIA_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: BEY_API_KEY
+        sync: false
+      - key: BEY_AVATAR_ID
+        sync: false
+    disk:
+      name: mykare-db
+      mountPath: /app/data
+      sizeGB: 1

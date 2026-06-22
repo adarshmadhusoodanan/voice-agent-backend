@@ -2,6 +2,8 @@ import asyncio
 import json
 import logging
 import os
+import re
+from collections.abc import AsyncIterable
 
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
@@ -28,6 +30,26 @@ logger = logging.getLogger("mykare-agent")
 logger.setLevel(logging.INFO)
 
 
+async def _strip_tool_json(stream: AsyncIterable[str]) -> AsyncIterable[str]:
+    """Strip leaked tool-call JSON blobs before they reach TTS."""
+    hold = ""
+    async for chunk in stream:
+        hold += chunk
+        idx = hold.find('{"')
+        if idx == -1:
+            yield hold
+            hold = ""
+        else:
+            yield hold[:idx]      # flush safe text before potential JSON
+            hold = hold[idx:]     # buffer from the opening brace
+            if len(hold) > 300:   # too large to be a tool call — flush as-is
+                yield hold
+                hold = ""
+    # End of stream: discard if it matches a tool-call blob, else yield
+    if hold and not re.match(r'^\s*\{"name"\s*:', hold):
+        yield hold
+
+
 async def entrypoint(ctx: JobContext) -> None:
     await init_db()
 
@@ -43,7 +65,7 @@ async def entrypoint(ctx: JobContext) -> None:
             endpointing_ms=300,
         ),
         llm=openai_plugin.LLM.with_openrouter(
-            model="meta-llama/llama-3.3-70b-instruct",
+            model="openai/gpt-oss-120b:free",
             api_key=os.getenv("OPENROUTER_API_KEY"),
             parallel_tool_calls=False,
         ),
@@ -51,6 +73,7 @@ async def entrypoint(ctx: JobContext) -> None:
         turn_handling={
             "endpointing": {"min_delay": 0.2, "max_delay": 6.0},
         },
+        tts_text_transforms=[_strip_tool_json],
     )
 
     agent = FrontDeskAgent(room=ctx.room)
@@ -87,7 +110,7 @@ async def entrypoint(ctx: JobContext) -> None:
         )
         try:
             resp = await or_client.chat.completions.create(
-                model="meta-llama/llama-3.3-70b-instruct",
+                model="openai/gpt-oss-120b:free",
                 messages=[
                     {"role": "system", "content": SUMMARY_PROMPT},
                     {"role": "user", "content": json.dumps(history)},
